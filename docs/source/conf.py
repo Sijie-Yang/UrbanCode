@@ -25,8 +25,8 @@ templates_path = ['_templates']
 exclude_patterns = []
 
 # Add these lines after the extensions list
-add_module_names = False  # Don't prepend module names to functions/classes
-python_use_unqualified_type_names = True  # Use shorter type names
+add_module_names = True  # Include module names with object names
+python_use_unqualified_type_names = False  # Use fully qualified type names
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -53,10 +53,9 @@ napoleon_type_aliases = None
 # Autodoc settings
 autodoc_default_options = {
     'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__'
+    'undoc-members': False,
+    'show-inheritance': True,
+    'imported-members': False,
 }
 
 # Add any paths that contain templates here, relative to this directory.
@@ -301,3 +300,21 @@ intersphinx_mapping = {
     'torch': ('https://pytorch.org/docs/stable/', None),
     'torchvision': ('https://pytorch.org/vision/stable/', None),
 }
+
+# Add this to create a custom shorthand for urbancode
+rst_prolog = """
+.. |uc| replace:: urbancode
+.. |uc.svi| replace:: :mod:`urbancode.svi`
+"""
+
+# Use intersphinx to create links
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3', None),
+}
+
+# Create a custom role for shortened module paths
+nitpicky = True
+nitpick_ignore = [
+    ('py:mod', 'uc'),
+    ('py:mod', 'uc.svi'),
+]

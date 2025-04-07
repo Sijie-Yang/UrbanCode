@@ -1,32 +1,11 @@
-SVI Module
-==========
+Street View Image (SVI) Analysis
+============================
 
-Street View Image analysis functions.
+Street View Image analysis functions for urban feature extraction, semantic segmentation, object detection, and scene recognition.
+
+The SVI module can be imported as ``import urbancode as uc`` and used as ``uc.svi.function_name()``.
 
 .. automodule:: urbancode.svi
-   :members:
-   :undoc-members:
+   :members: filename, color, segmentation, object_detection, scene_recognition
    :show-inheritance:
-
-Basic Image Features
--------------------
-
-.. autofunction:: urbancode.svi.filename
-.. autofunction:: urbancode.svi.color
-.. autofunction:: urbancode.svi.read_image_with_pil
-.. autofunction:: urbancode.svi.compute_colorfulness
-.. autofunction:: urbancode.svi.compute_canny_edges
-.. autofunction:: urbancode.svi.compute_hue_mean_std
-.. autofunction:: urbancode.svi.compute_saturation_mean_std
-.. autofunction:: urbancode.svi.compute_lightness_mean_std
-.. autofunction:: urbancode.svi.compute_contrast
-.. autofunction:: urbancode.svi.compute_sharpness
-.. autofunction:: urbancode.svi.compute_entropy
-.. autofunction:: urbancode.svi.compute_image_variance
-
-Advanced Features
----------------
-
-.. autofunction:: urbancode.svi.segmentation
-.. autofunction:: urbancode.svi.object_detection
-.. autofunction:: urbancode.svi.scene_recognition 
+   :noindex: 

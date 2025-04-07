@@ -8,11 +8,24 @@ Welcome to UrbanCode's documentation!
 
 UrbanCode is a package for universal urban analysis.
 
+**Recommended Import Style**::
+
+    import urbancode as uc
+    
+    # Basic example
+    df = uc.svi.filename("path/to/images")
+    
+    # Advanced features
+    segmentation = uc.svi.segmentation("path/to/image.jpg")
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   installation
    svi
+   examples
+   changelog
 
 Indices and tables
 ==================
