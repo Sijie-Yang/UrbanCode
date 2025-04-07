@@ -52,7 +52,7 @@ napoleon_type_aliases = None
 
 # Autodoc settings
 autodoc_default_options = {
-    'members': True,
+    'members': False,
     'undoc-members': False,
     'show-inheritance': True,
     'imported-members': False,
