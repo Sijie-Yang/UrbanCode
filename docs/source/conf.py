@@ -28,6 +28,9 @@ exclude_patterns = []
 add_module_names = False  # Don't prepend module names to functions/classes
 python_use_unqualified_type_names = True  # Use shorter type names
 
+# Add a modindex_common_prefix setting to hide urbancode prefix
+modindex_common_prefix = ['urbancode.']
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
