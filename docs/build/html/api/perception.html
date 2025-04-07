@@ -1,0 +1,240 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urban Perception &mdash; UrbanCode 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=a58bc63e"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Network Analysis" href="network.html" />
+    <link rel="prev" title="Street View Image (SVI) Analysis" href="svi.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            UrbanCode
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="svi.html">Street View Image (SVI) Analysis</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Urban Perception</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#two-stage-neural-network">Two-Stage Neural Network</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#urbancode.perception.TwoStageNN.CustomDataset"><code class="docutils literal notranslate"><span class="pre">CustomDataset</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.CustomDataset.__init__"><code class="docutils literal notranslate"><span class="pre">CustomDataset.__init__()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNModel"><code class="docutils literal notranslate"><span class="pre">TwoStageNNModel</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNModel.__init__"><code class="docutils literal notranslate"><span class="pre">TwoStageNNModel.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNModel.forward"><code class="docutils literal notranslate"><span class="pre">TwoStageNNModel.forward()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#urbancode.perception.TwoStageNN.compute_metrics"><code class="docutils literal notranslate"><span class="pre">compute_metrics()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception"><code class="docutils literal notranslate"><span class="pre">TwoStageNNPerception</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.__init__"><code class="docutils literal notranslate"><span class="pre">TwoStageNNPerception.__init__()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.train"><code class="docutils literal notranslate"><span class="pre">TwoStageNNPerception.train()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.load_best_model"><code class="docutils literal notranslate"><span class="pre">TwoStageNNPerception.load_best_model()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="network.html">Network Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">UrbanCode</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Urban Perception</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/perception.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="urban-perception">
+<h1>Urban Perception<a class="headerlink" href="#urban-perception" title="Link to this heading"></a></h1>
+<p>The perception module provides tools for analyzing urban environments using computer vision and machine learning techniques.</p>
+<section id="two-stage-neural-network">
+<h2>Two-Stage Neural Network<a class="headerlink" href="#two-stage-neural-network" title="Link to this heading"></a></h2>
+<dl class="py class" id="module-urbancode.perception.TwoStageNN">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.CustomDataset">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">urbancode.perception.TwoStageNN.</span></span><span class="sig-name descname"><span class="pre">CustomDataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">csv_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#CustomDataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.CustomDataset" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://pytorch.org/docs/stable/data.html#torch.utils.data.Dataset" title="(in PyTorch v2.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.CustomDataset.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">csv_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transform</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#CustomDataset.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.CustomDataset.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNModel">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">urbancode.perception.TwoStageNN.</span></span><span class="sig-name descname"><span class="pre">TwoStageNNModel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_initial_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNModel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNModel" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html#torch.nn.Module" title="(in PyTorch v2.6)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNModel.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_initial_features</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNModel.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNModel.__init__" title="Link to this definition"></a></dt>
+<dd><p>Initialize internal Module state, shared by both nn.Module and ScriptModule.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNModel.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_features</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNModel.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNModel.forward" title="Link to this definition"></a></dt>
+<dd><p>Define the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.compute_metrics">
+<span class="sig-prename descclassname"><span class="pre">urbancode.perception.TwoStageNN.</span></span><span class="sig-name descname"><span class="pre">compute_metrics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">true</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pred</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#compute_metrics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.compute_metrics" title="Link to this definition"></a></dt>
+<dd><p>Compute regression metrics</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNPerception">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">urbancode.perception.TwoStageNN.</span></span><span class="sig-name descname"><span class="pre">TwoStageNNPerception</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_csv_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_save_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNPerception"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.13)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNPerception.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_csv_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_folder</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_save_path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">img_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">target_col_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_feature_cols</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">train_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">val_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">random_seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNPerception.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.__init__" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNPerception.train">
+<span class="sig-name descname"><span class="pre">train</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">num_epochs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNPerception.train"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.train" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="urbancode.perception.TwoStageNN.TwoStageNNPerception.load_best_model">
+<span class="sig-name descname"><span class="pre">load_best_model</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/urbancode/perception/TwoStageNN.html#TwoStageNNPerception.load_best_model"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#urbancode.perception.TwoStageNN.TwoStageNNPerception.load_best_model" title="Link to this definition"></a></dt>
+<dd><p>Load the best model from saved checkpoint</p>
+</dd></dl>
+
+</dd></dl>
+
+<p>The Two-Stage Neural Network module implements a deep learning approach for urban perception analysis. It consists of:</p>
+<ol class="arabic simple">
+<li><p>Feature Extraction Stage
+* Image preprocessing
+* Feature extraction using pre-trained models
+* Feature normalization and augmentation</p></li>
+<li><p>Classification Stage
+* Multi-label classification
+* Confidence scoring
+* Ensemble predictions</p></li>
+</ol>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
+<p>Here are some examples of using the perception module:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">urbancode.perception</span><span class="w"> </span><span class="kn">import</span> <span class="n">TwoStageNN</span>
+
+<span class="c1"># Initialize the model</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">TwoStageNN</span><span class="p">()</span>
+
+<span class="c1"># Load pre-trained weights</span>
+<span class="n">model</span><span class="o">.</span><span class="n">load_weights</span><span class="p">(</span><span class="s1">&#39;path/to/weights.pth&#39;</span><span class="p">)</span>
+
+<span class="c1"># Process a single image</span>
+<span class="n">predictions</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="s1">&#39;path/to/image.jpg&#39;</span><span class="p">)</span>
+
+<span class="c1"># Process a batch of images</span>
+<span class="n">batch_predictions</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict_batch</span><span class="p">([</span><span class="s1">&#39;image1.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;image2.jpg&#39;</span><span class="p">])</span>
+
+<span class="c1"># Get feature embeddings</span>
+<span class="n">features</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">extract_features</span><span class="p">(</span><span class="s1">&#39;path/to/image.jpg&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="svi.html" class="btn btn-neutral float-left" title="Street View Image (SVI) Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="network.html" class="btn btn-neutral float-right" title="Network Analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Sijie Yang.
+      <span class="lastupdated">Last updated on Apr 07, 2025.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,694 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>urbancode.svi.feature &mdash; UrbanCode 0.1.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=a58bc63e"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            UrbanCode
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/svi.html">Street View Image (SVI) Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/perception.html">Urban Perception</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/network.html">Network Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../changelog.html">Changelog</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">UrbanCode</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">urbancode.svi.feature</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for urbancode.svi.feature</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Street View Image (SVI) feature extraction module.</span>
+
+<span class="sd">This module provides functions for extracting various features from street view images,</span>
+<span class="sd">including:</span>
+<span class="sd">- Basic image features (color, edges, contrast, etc.)</span>
+<span class="sd">- Semantic segmentation using SegFormer</span>
+<span class="sd">- Object detection using Faster R-CNN</span>
+<span class="sd">- Scene recognition using ResNet</span>
+
+<span class="sd">The module is designed to work with pandas DataFrames containing image filenames</span>
+<span class="sd">and returns DataFrames with added feature columns.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">PIL</span><span class="w"> </span><span class="kn">import</span> <span class="n">Image</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">cv2</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.stats</span><span class="w"> </span><span class="kn">import</span> <span class="n">entropy</span> <span class="k">as</span> <span class="n">shannon_entropy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.transforms</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">T</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.models.segmentation</span><span class="w"> </span><span class="kn">import</span> <span class="n">deeplabv3_resnet50</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">SegformerImageProcessor</span><span class="p">,</span> <span class="n">SegformerForSemanticSegmentation</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.models</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">models</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torchvision.transforms</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">transforms</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">urllib.request</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torchvision.models.detection</span><span class="w"> </span><span class="kn">import</span> <span class="n">FasterRCNN_ResNet50_FPN_Weights</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">)</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">UserWarning</span><span class="p">)</span>
+
+<div class="viewcode-block" id="filename">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.filename">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filename</span><span class="p">(</span><span class="n">folder_path</span><span class="p">,</span> <span class="n">output_filename</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename_column</span><span class="o">=</span><span class="s1">&#39;Filename&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Scan folder for image files and create a DataFrame with filenames.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        folder_path (str): Path to the folder containing images</span>
+<span class="sd">        output_filename (str, optional): CSV filename to save results</span>
+<span class="sd">        filename_column (str, optional): Name for the filename column. Defaults to &#39;Filename&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        pd.DataFrame: DataFrame with image filenames</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Get all image files</span>
+    <span class="n">image_extensions</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;.jpg&#39;</span><span class="p">,</span> <span class="s1">&#39;.jpeg&#39;</span><span class="p">,</span> <span class="s1">&#39;.png&#39;</span><span class="p">,</span> <span class="s1">&#39;.bmp&#39;</span><span class="p">,</span> <span class="s1">&#39;.tiff&#39;</span><span class="p">)</span>
+    <span class="n">filenames</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">folder_path</span><span class="p">)</span> 
+                <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">image_extensions</span><span class="p">)]</span>
+    
+    <span class="c1"># Create DataFrame</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">filenames</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="n">filename_column</span><span class="p">])</span>
+    
+    <span class="c1"># Save to CSV if filename provided</span>
+    <span class="k">if</span> <span class="n">output_filename</span><span class="p">:</span>
+        <span class="n">df</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">output_filename</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    
+    <span class="k">return</span> <span class="n">df</span></div>
+
+
+<div class="viewcode-block" id="color">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.color">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">color</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">folder_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename_column</span><span class="o">=</span><span class="s1">&#39;Filename&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract color features from images and add to DataFrame.</span>
+<span class="sd">    </span>
+<span class="sd">    This function extracts various color-based features from images including:</span>
+<span class="sd">    - Colorfulness</span>
+<span class="sd">    - Hue statistics</span>
+<span class="sd">    - Saturation statistics</span>
+<span class="sd">    - Lightness statistics</span>
+<span class="sd">    - Contrast</span>
+<span class="sd">    - Sharpness</span>
+<span class="sd">    - Entropy</span>
+<span class="sd">    - Image variance</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        df (pd.DataFrame): DataFrame containing image filenames</span>
+<span class="sd">        folder_path (str): Path to the folder containing images</span>
+<span class="sd">        filename_column (str, optional): Name of the column containing filenames. Defaults to &#39;Filename&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        pd.DataFrame: Original DataFrame with added color feature columns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">folder_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;folder_path must be provided&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Initialize feature columns</span>
+    <span class="n">feature_data</span> <span class="o">=</span> <span class="p">[]</span>
+    
+    <span class="c1"># Process each image with tqdm progress bar</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Processing images&quot;</span><span class="p">):</span>
+        <span class="n">image_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_path</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="n">filename_column</span><span class="p">])</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">features</span> <span class="o">=</span> <span class="n">extract_features</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
+            <span class="n">feature_data</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Error processing </span><span class="si">{</span><span class="n">image_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">feature_data</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">extract_features</span><span class="o">.</span><span class="n">keys</span><span class="p">()})</span>
+    
+    <span class="c1"># Add features to DataFrame</span>
+    <span class="n">features_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">feature_data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df</span><span class="p">,</span> <span class="n">features_df</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="read_image_with_pil">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.read_image_with_pil">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_image_with_pil</span><span class="p">(</span><span class="n">image_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read an image file using PIL and convert it to OpenCV format.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image_path (str): Path to the image file</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        numpy.ndarray: Image in BGR format (OpenCV format)</span>
+<span class="sd">        </span>
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If image cannot be read</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">pil_image</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
+        <span class="n">pil_image</span> <span class="o">=</span> <span class="n">pil_image</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="s1">&#39;RGB&#39;</span><span class="p">)</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">pil_image</span><span class="p">)</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_RGB2BGR</span><span class="p">)</span>  <span class="c1"># Convert to BGR format for OpenCV</span>
+        <span class="k">return</span> <span class="n">image</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed to read the image with PIL: </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="compute_colorfulness">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_colorfulness">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_colorfulness</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the colorfulness metric of an image.</span>
+<span class="sd">    </span>
+<span class="sd">    This metric is based on the paper &quot;Measuring colorfulness in natural images&quot;</span>
+<span class="sd">    by Hasler and Süsstrunk (2003).</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Colorfulness score</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">G</span><span class="p">,</span> <span class="n">R</span><span class="p">)</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">image</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s2">&quot;float&quot;</span><span class="p">))</span>
+    <span class="n">rg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="n">R</span> <span class="o">-</span> <span class="n">G</span><span class="p">)</span>
+    <span class="n">yb</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">absolute</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">R</span> <span class="o">+</span> <span class="n">G</span><span class="p">)</span> <span class="o">-</span> <span class="n">B</span><span class="p">)</span>
+    <span class="p">(</span><span class="n">rbMean</span><span class="p">,</span> <span class="n">rbStd</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">rg</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">rg</span><span class="p">))</span>
+    <span class="p">(</span><span class="n">ybMean</span><span class="p">,</span> <span class="n">ybStd</span><span class="p">)</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">yb</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">yb</span><span class="p">))</span>
+    <span class="n">stdRoot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">rbStd</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">ybStd</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">meanRoot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">rbMean</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">ybMean</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">stdRoot</span> <span class="o">+</span> <span class="p">(</span><span class="mf">0.3</span> <span class="o">*</span> <span class="n">meanRoot</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="compute_canny_edges">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_canny_edges">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_canny_edges</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the ratio of edge pixels in an image using Canny edge detection.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Ratio of edge pixels to total pixels</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">edges</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">Canny</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
+    <span class="n">edge_ratio</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">edges</span><span class="p">)</span> <span class="o">/</span> <span class="n">edges</span><span class="o">.</span><span class="n">size</span>
+    <span class="k">return</span> <span class="n">edge_ratio</span></div>
+
+
+<div class="viewcode-block" id="compute_hue_mean_std">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_hue_mean_std">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_hue_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute mean and standard deviation of hue channel in HSV color space.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: (mean hue, standard deviation of hue)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hsv_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2HSV</span><span class="p">)</span>
+    <span class="n">hue</span> <span class="o">=</span> <span class="n">hsv_image</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">hue_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">hue</span><span class="p">)</span>
+    <span class="n">hue_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">hue</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">hue_mean</span><span class="p">,</span> <span class="n">hue_std</span></div>
+
+
+<div class="viewcode-block" id="compute_saturation_mean_std">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_saturation_mean_std">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_saturation_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute mean and standard deviation of saturation channel in HSV color space.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: (mean saturation, standard deviation of saturation)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hsv_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2HSV</span><span class="p">)</span>
+    <span class="n">saturation</span> <span class="o">=</span> <span class="n">hsv_image</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="n">saturation_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">saturation</span><span class="p">)</span>
+    <span class="n">saturation_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">saturation</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">saturation_mean</span><span class="p">,</span> <span class="n">saturation_std</span></div>
+
+
+<div class="viewcode-block" id="compute_lightness_mean_std">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_lightness_mean_std">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_lightness_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute mean and standard deviation of lightness channel in LAB color space.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        tuple: (mean lightness, standard deviation of lightness)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lab_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2Lab</span><span class="p">)</span>
+    <span class="n">lightness</span> <span class="o">=</span> <span class="n">lab_image</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">lightness_mean</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">lightness</span><span class="p">)</span>
+    <span class="n">lightness_std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">lightness</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">lightness_mean</span><span class="p">,</span> <span class="n">lightness_std</span></div>
+
+
+<div class="viewcode-block" id="compute_contrast">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_contrast">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_contrast</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the contrast of an image using standard deviation of grayscale values.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Contrast value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gray_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+    <span class="n">contrast</span> <span class="o">=</span> <span class="n">gray_image</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">contrast</span></div>
+
+
+<div class="viewcode-block" id="compute_sharpness">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_sharpness">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_sharpness</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the sharpness of an image using Laplacian variance.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Sharpness value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gray_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+    <span class="n">laplacian_var</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">Laplacian</span><span class="p">(</span><span class="n">gray_image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">CV_64F</span><span class="p">)</span><span class="o">.</span><span class="n">var</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">laplacian_var</span></div>
+
+
+<div class="viewcode-block" id="compute_entropy">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_entropy">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_entropy</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the Shannon entropy of an image.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Entropy value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gray_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+    <span class="n">entropy</span> <span class="o">=</span> <span class="n">shannon_entropy</span><span class="p">(</span><span class="n">gray_image</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">entropy</span></div>
+
+
+<div class="viewcode-block" id="compute_image_variance">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.compute_image_variance">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">compute_image_variance</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compute the variance of grayscale pixel values.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image (numpy.ndarray): Image in BGR format</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        float: Variance value</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">gray_image</span> <span class="o">=</span> <span class="n">cv2</span><span class="o">.</span><span class="n">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="o">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+    <span class="n">variance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">var</span><span class="p">(</span><span class="n">gray_image</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">variance</span></div>
+
+
+<div class="viewcode-block" id="extract_features">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.extract_features">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">extract_features</span><span class="p">(</span><span class="n">image_path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract all basic image features from a single image.</span>
+<span class="sd">    </span>
+<span class="sd">    This is a helper function that combines all basic feature extraction functions</span>
+<span class="sd">    into a single call.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        image_path (str): Path to the image file</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        dict: Dictionary containing all extracted features</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">image</span> <span class="o">=</span> <span class="n">read_image_with_pil</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
+    <span class="n">colorfulness</span> <span class="o">=</span> <span class="n">compute_colorfulness</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">canny_edges</span> <span class="o">=</span> <span class="n">compute_canny_edges</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">hue_mean</span><span class="p">,</span> <span class="n">hue_std</span> <span class="o">=</span> <span class="n">compute_hue_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">saturation_mean</span><span class="p">,</span> <span class="n">saturation_std</span> <span class="o">=</span> <span class="n">compute_saturation_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">lightness_mean</span><span class="p">,</span> <span class="n">lightness_std</span> <span class="o">=</span> <span class="n">compute_lightness_mean_std</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">contrast</span> <span class="o">=</span> <span class="n">compute_contrast</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">sharpness</span> <span class="o">=</span> <span class="n">compute_sharpness</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">entropy</span> <span class="o">=</span> <span class="n">compute_entropy</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="n">image_variance</span> <span class="o">=</span> <span class="n">compute_image_variance</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;Colorfulness&#39;</span><span class="p">:</span> <span class="n">colorfulness</span><span class="p">,</span>
+        <span class="s1">&#39;Canny_Edges&#39;</span><span class="p">:</span> <span class="n">canny_edges</span><span class="p">,</span>
+        <span class="s1">&#39;Hue_Mean&#39;</span><span class="p">:</span> <span class="n">hue_mean</span><span class="p">,</span>
+        <span class="s1">&#39;Hue_Std&#39;</span><span class="p">:</span> <span class="n">hue_std</span><span class="p">,</span>
+        <span class="s1">&#39;Saturation_Mean&#39;</span><span class="p">:</span> <span class="n">saturation_mean</span><span class="p">,</span>
+        <span class="s1">&#39;Saturation_Std&#39;</span><span class="p">:</span> <span class="n">saturation_std</span><span class="p">,</span>
+        <span class="s1">&#39;Lightness_Mean&#39;</span><span class="p">:</span> <span class="n">lightness_mean</span><span class="p">,</span>
+        <span class="s1">&#39;Lightness_Std&#39;</span><span class="p">:</span> <span class="n">lightness_std</span><span class="p">,</span>
+        <span class="s1">&#39;Contrast&#39;</span><span class="p">:</span> <span class="n">contrast</span><span class="p">,</span>
+        <span class="s1">&#39;Sharpness&#39;</span><span class="p">:</span> <span class="n">sharpness</span><span class="p">,</span>
+        <span class="s1">&#39;Entropy&#39;</span><span class="p">:</span> <span class="n">entropy</span><span class="p">,</span>
+        <span class="s1">&#39;Image_Variance&#39;</span><span class="p">:</span> <span class="n">image_variance</span>
+    <span class="p">}</span></div>
+
+
+<div class="viewcode-block" id="segmentation">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.segmentation">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">segmentation</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">folder_path</span><span class="p">,</span> <span class="n">filename_column</span><span class="o">=</span><span class="s1">&#39;Filename&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform semantic segmentation on images using SegFormer model.</span>
+<span class="sd">    </span>
+<span class="sd">    This function uses the SegFormer model fine-tuned on Cityscapes dataset to</span>
+<span class="sd">    segment images into 19 different classes including road, building, vegetation, etc.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        df (pd.DataFrame): DataFrame containing image filenames</span>
+<span class="sd">        folder_path (str): Path to the folder containing images</span>
+<span class="sd">        filename_column (str, optional): Name of the column containing filenames. Defaults to &#39;Filename&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        pd.DataFrame: Original DataFrame with added segmentation feature columns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Initialize model and feature extractor</span>
+    <span class="n">model_name</span> <span class="o">=</span> <span class="s2">&quot;nvidia/segformer-b0-finetuned-cityscapes-1024-1024&quot;</span>
+    <span class="n">feature_extractor</span> <span class="o">=</span> <span class="n">SegformerImageProcessor</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="s2">&quot;nvidia/segformer-b0-finetuned-ade-512-512&quot;</span><span class="p">)</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">SegformerForSemanticSegmentation</span><span class="o">.</span><span class="n">from_pretrained</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+    
+    <span class="c1"># Use MPS if on M1/M2 Mac</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">mps</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;mps&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    
+    <span class="c1"># Cityscapes categories</span>
+    <span class="n">classes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="s1">&#39;road&#39;</span><span class="p">,</span> <span class="s1">&#39;sidewalk&#39;</span><span class="p">,</span> <span class="s1">&#39;building&#39;</span><span class="p">,</span> <span class="s1">&#39;wall&#39;</span><span class="p">,</span> <span class="s1">&#39;fence&#39;</span><span class="p">,</span> <span class="s1">&#39;pole&#39;</span><span class="p">,</span> 
+        <span class="s1">&#39;traffic light&#39;</span><span class="p">,</span> <span class="s1">&#39;traffic sign&#39;</span><span class="p">,</span> <span class="s1">&#39;vegetation&#39;</span><span class="p">,</span> <span class="s1">&#39;terrain&#39;</span><span class="p">,</span> <span class="s1">&#39;sky&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;person&#39;</span><span class="p">,</span> <span class="s1">&#39;rider&#39;</span><span class="p">,</span> <span class="s1">&#39;car&#39;</span><span class="p">,</span> <span class="s1">&#39;truck&#39;</span><span class="p">,</span> <span class="s1">&#39;bus&#39;</span><span class="p">,</span> <span class="s1">&#39;train&#39;</span><span class="p">,</span> 
+        <span class="s1">&#39;motorcycle&#39;</span><span class="p">,</span> <span class="s1">&#39;bicycle&#39;</span>
+    <span class="p">]</span>
+    
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># Add tqdm progress bar</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Segmenting images&quot;</span><span class="p">):</span>
+        <span class="n">img_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_path</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="n">filename_column</span><span class="p">])</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">img_path</span><span class="p">)</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="s1">&#39;RGB&#39;</span><span class="p">)</span>
+        
+        <span class="c1"># Preprocessing</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="n">feature_extractor</span><span class="p">(</span><span class="n">images</span><span class="o">=</span><span class="n">image</span><span class="p">,</span> <span class="n">return_tensors</span><span class="o">=</span><span class="s2">&quot;pt&quot;</span><span class="p">)</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">inputs</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        
+        <span class="c1"># Inference</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="o">**</span><span class="n">inputs</span><span class="p">)</span>
+            <span class="n">logits</span> <span class="o">=</span> <span class="n">outputs</span><span class="o">.</span><span class="n">logits</span>
+            
+        <span class="c1"># Post-processing</span>
+        <span class="n">upsampled_logits</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">interpolate</span><span class="p">(</span>
+            <span class="n">logits</span><span class="p">,</span>
+            <span class="n">size</span><span class="o">=</span><span class="n">image</span><span class="o">.</span><span class="n">size</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+            <span class="n">align_corners</span><span class="o">=</span><span class="kc">False</span>
+        <span class="p">)</span>
+        <span class="n">pred</span> <span class="o">=</span> <span class="n">upsampled_logits</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        
+        <span class="c1"># Calculate pixel ratio for each category</span>
+        <span class="n">total_pixels</span> <span class="o">=</span> <span class="n">pred</span><span class="o">.</span><span class="n">size</span>
+        <span class="n">class_ratios</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">class_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">classes</span><span class="p">):</span>
+            <span class="n">ratio</span> <span class="o">=</span> <span class="p">(</span><span class="n">pred</span> <span class="o">==</span> <span class="n">i</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">total_pixels</span>
+            <span class="n">class_ratios</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;seg_</span><span class="si">{</span><span class="n">class_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ratio</span>
+            
+        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">class_ratios</span><span class="p">)</span>
+    
+    <span class="c1"># Create new feature DataFrame and merge with original DataFrame</span>
+    <span class="n">features_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df</span><span class="p">,</span> <span class="n">features_df</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># Add COCO label definitions</span>
+<span class="n">COCO_LABELS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="mi">1</span><span class="p">:</span> <span class="s1">&#39;person&#39;</span><span class="p">,</span>
+    <span class="mi">2</span><span class="p">:</span> <span class="s1">&#39;bicycle&#39;</span><span class="p">,</span>
+    <span class="mi">3</span><span class="p">:</span> <span class="s1">&#39;car&#39;</span><span class="p">,</span>
+    <span class="mi">4</span><span class="p">:</span> <span class="s1">&#39;motorcycle&#39;</span><span class="p">,</span>
+    <span class="mi">6</span><span class="p">:</span> <span class="s1">&#39;bus&#39;</span><span class="p">,</span>
+    <span class="mi">8</span><span class="p">:</span> <span class="s1">&#39;truck&#39;</span><span class="p">,</span>
+    <span class="mi">10</span><span class="p">:</span> <span class="s1">&#39;traffic light&#39;</span><span class="p">,</span>
+    <span class="mi">11</span><span class="p">:</span> <span class="s1">&#39;fire hydrant&#39;</span><span class="p">,</span>
+    <span class="mi">13</span><span class="p">:</span> <span class="s1">&#39;stop sign&#39;</span><span class="p">,</span>
+    <span class="mi">15</span><span class="p">:</span> <span class="s1">&#39;bench&#39;</span>
+<span class="p">}</span>
+
+<div class="viewcode-block" id="object_detection">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.object_detection">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">object_detection</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">folder_path</span><span class="p">,</span> <span class="n">filename_column</span><span class="o">=</span><span class="s1">&#39;Filename&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform object detection on images using Faster R-CNN.</span>
+<span class="sd">    </span>
+<span class="sd">    This function uses Faster R-CNN with ResNet-50 backbone pre-trained on COCO dataset</span>
+<span class="sd">    to detect objects in images. It detects common urban objects like people, vehicles,</span>
+<span class="sd">    traffic signs, etc.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        df (pd.DataFrame): DataFrame containing image filenames</span>
+<span class="sd">        folder_path (str): Path to the folder containing images</span>
+<span class="sd">        filename_column (str, optional): Name of the column containing filenames. Defaults to &#39;Filename&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        pd.DataFrame: Original DataFrame with added object detection feature columns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Initialize model</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">detection</span><span class="o">.</span><span class="n">fasterrcnn_resnet50_fpn</span><span class="p">(</span>
+        <span class="n">weights</span><span class="o">=</span><span class="n">FasterRCNN_ResNet50_FPN_Weights</span><span class="o">.</span><span class="n">DEFAULT</span>
+    <span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    
+    <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    
+    <span class="c1"># Define image transformations</span>
+    <span class="n">transform</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+    <span class="p">])</span>
+    
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Detecting objects&quot;</span><span class="p">):</span>
+        <span class="n">img_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_path</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="n">filename_column</span><span class="p">])</span>
+        
+        <span class="c1"># Load and transform image</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">img_path</span><span class="p">)</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="s2">&quot;RGB&quot;</span><span class="p">)</span>
+        <span class="n">image_tensor</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+        
+        <span class="c1"># Run detection</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">prediction</span> <span class="o">=</span> <span class="n">model</span><span class="p">([</span><span class="n">image_tensor</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+        
+        <span class="c1"># Count detection results</span>
+        <span class="n">counts</span> <span class="o">=</span> <span class="p">{</span><span class="sa">f</span><span class="s1">&#39;det_</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">:</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">COCO_LABELS</span><span class="o">.</span><span class="n">values</span><span class="p">()}</span>
+        
+        <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">prediction</span><span class="p">[</span><span class="s1">&#39;labels&#39;</span><span class="p">]:</span>
+            <span class="n">label_name</span> <span class="o">=</span> <span class="n">COCO_LABELS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">label</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+            <span class="k">if</span> <span class="n">label_name</span><span class="p">:</span>
+                <span class="n">counts</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;det_</span><span class="si">{</span><span class="n">label_name</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        
+        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span>
+    
+    <span class="c1"># Create new feature DataFrame and merge with original DataFrame</span>
+    <span class="n">features_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df</span><span class="p">,</span> <span class="n">features_df</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+
+<span class="c1"># Add scene categories</span>
+<span class="n">SCENE_CATEGORIES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;downtown&#39;</span><span class="p">,</span> <span class="s1">&#39;office_building&#39;</span><span class="p">,</span> <span class="s1">&#39;apartment_building/outdoor&#39;</span><span class="p">,</span> 
+    <span class="s1">&#39;residential_neighborhood&#39;</span><span class="p">,</span> <span class="s1">&#39;food_court&#39;</span><span class="p">,</span> <span class="s1">&#39;parking_lot&#39;</span><span class="p">,</span> 
+    <span class="s1">&#39;driveway&#39;</span><span class="p">,</span> <span class="s1">&#39;highway&#39;</span><span class="p">,</span> <span class="s1">&#39;plaza&#39;</span><span class="p">,</span> <span class="s1">&#39;market/outdoor&#39;</span><span class="p">,</span> 
+    <span class="s1">&#39;campus&#39;</span><span class="p">,</span> <span class="s1">&#39;promenade&#39;</span><span class="p">,</span> <span class="s1">&#39;field/wild&#39;</span><span class="p">,</span> <span class="s1">&#39;forest_path&#39;</span><span class="p">,</span> 
+    <span class="s1">&#39;forest/broadleaf&#39;</span><span class="p">,</span> <span class="s1">&#39;park&#39;</span><span class="p">,</span> <span class="s1">&#39;construction_site&#39;</span><span class="p">,</span> <span class="s1">&#39;industrial_area&#39;</span>
+<span class="p">]</span>
+
+<div class="viewcode-block" id="scene_recognition">
+<a class="viewcode-back" href="../../../api/svi.html#urbancode.svi.feature.scene_recognition">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">scene_recognition</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">folder_path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filename_column</span><span class="o">=</span><span class="s1">&#39;Filename&#39;</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Perform scene recognition on images using ResNet.</span>
+<span class="sd">    </span>
+<span class="sd">    This function uses ResNet-50 pre-trained on ImageNet to classify images into</span>
+<span class="sd">    different scene categories.</span>
+<span class="sd">    </span>
+<span class="sd">    Args:</span>
+<span class="sd">        df (pd.DataFrame): DataFrame containing image filenames</span>
+<span class="sd">        folder_path (str): Path to the folder containing images</span>
+<span class="sd">        filename_column (str, optional): Name of the column containing filenames. Defaults to &#39;Filename&#39;</span>
+<span class="sd">        </span>
+<span class="sd">    Returns:</span>
+<span class="sd">        pd.DataFrame: Original DataFrame with added scene recognition feature columns</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">scene_model_file</span> <span class="o">=</span>  <span class="s1">&#39;./data/resnet50_places365.pth.tar&#39;</span>
+    <span class="n">scene_label_file</span> <span class="o">=</span> <span class="s1">&#39;./data/categories_places365.txt&#39;</span>
+
+    <span class="c1"># Check and create data directory</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;./data&#39;</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="c1"># Download model file if it doesn&#39;t exist</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">scene_model_file</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Downloading Places365 model...&quot;</span><span class="p">)</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;http://places2.csail.mit.edu/models_places365/resnet50_places365.pth.tar&#39;</span>
+        <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlretrieve</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">scene_model_file</span><span class="p">)</span>
+
+    <span class="c1"># Download label file if it doesn&#39;t exist</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">scene_label_file</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Downloading category labels...&quot;</span><span class="p">)</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="s1">&#39;https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt&#39;</span>
+        <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlretrieve</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">scene_label_file</span><span class="p">)</span>
+
+    <span class="c1"># Initialize model</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">resnet50</span><span class="p">(</span><span class="n">num_classes</span><span class="o">=</span><span class="mi">365</span><span class="p">)</span>
+    <span class="n">checkpoint</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">scene_model_file</span><span class="p">,</span> <span class="n">map_location</span><span class="o">=</span><span class="k">lambda</span> <span class="n">storage</span><span class="p">,</span> <span class="n">loc</span><span class="p">:</span> <span class="n">storage</span><span class="p">)</span>
+    <span class="n">state_dict</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="s1">&#39;module.&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">):</span> <span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">checkpoint</span><span class="p">[</span><span class="s1">&#39;state_dict&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">state_dict</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+    
+    <span class="c1"># Set device</span>
+    <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+    
+    <span class="c1"># Load category labels</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">scene_label_file</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">categories</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">3</span><span class="p">:]</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">]</span>
+    <span class="n">specific_category_indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">categories</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">category</span><span class="p">)</span> <span class="k">for</span> <span class="n">category</span> <span class="ow">in</span> <span class="n">SCENE_CATEGORIES</span><span class="p">]</span>
+    
+    <span class="c1"># Define image transformations</span>
+    <span class="n">transform</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">Resize</span><span class="p">((</span><span class="mi">256</span><span class="p">,</span> <span class="mi">256</span><span class="p">)),</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">CenterCrop</span><span class="p">(</span><span class="mi">224</span><span class="p">),</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+        <span class="n">transforms</span><span class="o">.</span><span class="n">Normalize</span><span class="p">(</span><span class="n">mean</span><span class="o">=</span><span class="p">[</span><span class="mf">0.485</span><span class="p">,</span> <span class="mf">0.456</span><span class="p">,</span> <span class="mf">0.406</span><span class="p">],</span> <span class="n">std</span><span class="o">=</span><span class="p">[</span><span class="mf">0.229</span><span class="p">,</span> <span class="mf">0.224</span><span class="p">,</span> <span class="mf">0.225</span><span class="p">]),</span>
+    <span class="p">])</span>
+    
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># Show progress with tqdm</span>
+    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Recognizing scenes&quot;</span><span class="p">):</span>
+        <span class="n">img_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">folder_path</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="n">filename_column</span><span class="p">])</span>
+        
+        <span class="c1"># Load and process image</span>
+        <span class="n">image</span> <span class="o">=</span> <span class="n">Image</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">img_path</span><span class="p">)</span><span class="o">.</span><span class="n">convert</span><span class="p">(</span><span class="s1">&#39;RGB&#39;</span><span class="p">)</span>
+        <span class="n">image_tensor</span> <span class="o">=</span> <span class="n">transform</span><span class="p">(</span><span class="n">image</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+        
+        <span class="c1"># Make prediction</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">outputs</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">image_tensor</span><span class="p">)</span>
+            <span class="n">probabilities</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        
+        <span class="c1"># Collect probabilities for specific categories</span>
+        <span class="n">scene_probs</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="sa">f</span><span class="s1">&#39;scene_</span><span class="si">{</span><span class="n">category</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">:</span> <span class="n">probabilities</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> 
+            <span class="k">for</span> <span class="n">category</span><span class="p">,</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">SCENE_CATEGORIES</span><span class="p">,</span> <span class="n">specific_category_indices</span><span class="p">)</span>
+        <span class="p">}</span>
+        
+        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">scene_probs</span><span class="p">)</span>
+    
+    <span class="c1"># Create new feature DataFrame and merge with original DataFrame</span>
+    <span class="n">features_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pd</span><span class="o">.</span><span class="n">concat</span><span class="p">([</span><span class="n">df</span><span class="p">,</span> <span class="n">features_df</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Sijie Yang.
+      <span class="lastupdated">Last updated on Apr 07, 2025.
+      </span></p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
