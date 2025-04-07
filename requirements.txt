@@ -1,0 +1,16 @@
+# Core dependencies
+networkx>=2.5
+osmnx>=1.1.1
+momepy>=0.5.3
+geopandas>=0.9.0
+matplotlib>=3.3.4
+torch>=2.0.0
+torchvision>=0.15.0
+contextily>=1.6.2
+
+# Documentation dependencies
+sphinx>=6.0
+sphinx-rtd-theme>=1.0.0
+sphinx-autodoc-typehints>=1.19.5
+sphinx-copybutton>=0.5.0
+sphinxcontrib-napoleon>=0.7 
