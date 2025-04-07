@@ -24,6 +24,10 @@ extensions = [
 templates_path = ['_templates']
 exclude_patterns = []
 
+# Add these lines after the extensions list
+add_module_names = False  # Don't prepend module names to functions/classes
+python_use_unqualified_type_names = True  # Use shorter type names
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
