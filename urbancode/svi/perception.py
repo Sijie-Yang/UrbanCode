@@ -12,6 +12,72 @@ from sklearn.preprocessing import StandardScaler
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
+def comfort(img_path, model_path, initial_features=None, device=None):
+    """
+    Predict comfort score for an image using a pre-trained model.
+
+    Args:
+        img_path (str): Path to the image file
+        model_path (str): Path to the pre-trained model
+        initial_features (numpy.ndarray, optional): Initial feature vector
+        device (str, optional): Device to run the model on ('cuda' or 'cpu')
+
+    Returns:
+        float: Predicted comfort score
+
+    Raises:
+        FileNotFoundError: If the image file or model file does not exist
+        ValueError: If the model cannot be loaded
+    """
+    # Check if files exist
+    if not os.path.exists(img_path):
+        raise FileNotFoundError(f"Image file not found: {img_path}")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+
+    # Set device
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    
+    # Load model
+    try:
+        model = TwoStageNNModel(num_initial_features=initial_features.shape[0] if initial_features is not None else 0, 
+                               num_features=20)
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.to(device)
+        model.eval()
+    except Exception as e:
+        raise ValueError(f"Failed to load model: {str(e)}")
+
+    # Load and preprocess image using a deterministic transform for prediction
+    transform = transforms.Compose([
+        transforms.Resize((512, 1024)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    
+    try:
+        image = Image.open(img_path).convert('RGB')
+        image = transform(image).unsqueeze(0).to(device)
+    except Exception as e:
+        raise ValueError(f"Failed to load or preprocess image: {str(e)}")
+
+    # Prepare initial features
+    if initial_features is not None:
+        initial_features = torch.tensor(initial_features, dtype=torch.float).unsqueeze(0).to(device)
+    else:
+        initial_features = torch.zeros((1, 0), dtype=torch.float).to(device)
+
+    # Predict
+    with torch.no_grad():
+        try:
+            _, comfort_score = model(image, initial_features)
+            comfort_score = comfort_score.squeeze().item()
+        except Exception as e:
+            raise ValueError(f"Prediction failed: {str(e)}")
+
+    return comfort_score
+
 class CustomDataset(Dataset):
     def __init__(self, csv_path, img_folder, 
                  img_col_name,           # Image filename column name
@@ -71,6 +137,12 @@ class CustomDataset(Dataset):
         return image, initial_features, labels, target
 
 class TwoStageNNModel(nn.Module):
+    """
+    A two-stage neural network model for perception tasks.
+    
+    This model consists of a pre-trained ResNet50 backbone followed by task-specific layers
+    and a final layer for comfort prediction.
+    """
     def __init__(self, num_initial_features, num_features):
         super(TwoStageNNModel, self).__init__()
         # Fix pretrained deprecation warning
@@ -134,6 +206,23 @@ def compute_metrics(true, pred):
     }
 
 class TwoStageNNPerception:
+    """
+    A class for training and evaluating a two-stage neural network for perception tasks.
+    
+    This class handles dataset creation, model training, validation, and testing.
+    
+    Example:
+        >>> perception = TwoStageNNPerception(
+        ...     data_csv_path='data.csv',
+        ...     image_folder='images/',
+        ...     model_save_path='models/',
+        ...     img_col_name='image',
+        ...     target_col_name='comfort',
+        ...     feature_cols=(10, 20),
+        ...     initial_feature_cols=(0, 10)
+        ... )
+        >>> perception.train(num_epochs=10)
+    """
     def __init__(self, 
                  data_csv_path,
                  image_folder,
@@ -195,6 +284,12 @@ class TwoStageNNPerception:
         self.writer = SummaryWriter(log_dir=os.path.join(model_save_path, 'logs'))
         
     def train(self, num_epochs):
+        """
+        Train the model for the specified number of epochs.
+        
+        Args:
+            num_epochs (int): Number of epochs to train for
+        """
         best_val_loss = float('inf')
         
         for epoch in range(num_epochs):
@@ -231,6 +326,7 @@ class TwoStageNNPerception:
         self.writer.close()
         
     def _train_epoch(self, epoch):
+        """Train for one epoch."""
         epoch_loss = 0
         for images, initial_features, labels, target in tqdm(self.train_loader, 
                                                            desc="Training"):
@@ -253,12 +349,10 @@ class TwoStageNNPerception:
             
             epoch_loss += combined_loss.item()
             
-        avg_loss = epoch_loss / len(self.train_loader)
-        self.writer.add_scalar('Loss/train', avg_loss, epoch)
-        self.writer.add_scalar('w', self.model.w.item(), epoch)
-        return avg_loss
+        return epoch_loss / len(self.train_loader)
     
     def _validate(self, epoch):
+        """Validate the model."""
         val_loss = 0
         with torch.no_grad():
             for images, initial_features, labels, target in tqdm(self.val_loader, 
@@ -269,45 +363,37 @@ class TwoStageNNPerception:
                 target = target.to(self.device)
                 
                 features, comfort = self.model(images, initial_features)
+                
                 loss1 = sum(self.criterion(features[:, i], labels[:, i]) 
                            for i in range(labels.shape[1]))
                 loss2 = self.criterion(comfort.squeeze(), target)
                 combined_loss = torch.relu(self.model.w) * loss1 + \
                               (1 - torch.relu(self.model.w)) * loss2
+                
                 val_loss += combined_loss.item()
                 
-        avg_loss = val_loss / len(self.val_loader)
-        self.writer.add_scalar('Loss/val', avg_loss, epoch)
-        return avg_loss
+        return val_loss / len(self.val_loader)
     
     def _test(self, epoch):
+        """Test the model."""
         self.model.eval()
         all_targets = []
-        all_preds = []
+        all_predictions = []
         
         with torch.no_grad():
-            for images, initial_features, _, target in tqdm(self.test_loader, 
-                                                          desc="Testing"):
+            for images, initial_features, labels, target in tqdm(self.test_loader, 
+                                                               desc="Testing"):
                 images = images.to(self.device)
                 initial_features = initial_features.to(self.device)
+                
                 _, comfort = self.model(images, initial_features)
-                predicted = comfort.squeeze().cpu().numpy()
+                
                 all_targets.extend(target.numpy())
-                all_preds.extend(predicted)
+                all_predictions.extend(comfort.squeeze().cpu().numpy())
         
-        metrics = compute_metrics(all_targets, all_preds)
-        
-        # Log metrics
-        for name, value in metrics.items():
-            self.writer.add_scalar(f'Metrics/{name}', value, epoch)
-            
-        return metrics
+        return compute_metrics(all_targets, all_predictions)
     
     def load_best_model(self):
-        """Load the best model from saved checkpoint"""
-        best_model_path = os.path.join(self.model_save_path, 'best_model.pth')
-        if os.path.exists(best_model_path):
-            self.model.load_state_dict(torch.load(best_model_path))
-            print("Loaded best model from checkpoint")
-        else:
-            print("No saved model found")
+        """Load the best model from the saved path."""
+        self.model.load_state_dict(torch.load(os.path.join(self.model_save_path, 'best_model.pth')))
+        self.model.eval() 

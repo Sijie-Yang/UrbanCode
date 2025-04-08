@@ -246,7 +246,13 @@ def compute_entropy(image):
     """
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     entropy = shannon_entropy(gray_image)
-    return entropy
+    
+    # 确保返回的是单一值而不是列表
+    if isinstance(entropy, (list, np.ndarray)):
+        # 如果是列表或数组，取平均值
+        entropy = np.mean(entropy)
+    
+    return float(entropy)  # 确保返回的是浮点数
 
 def compute_image_variance(image):
     """

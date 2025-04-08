@@ -11,4 +11,17 @@ The SVI module can be imported as ``import urbancode as uc`` and used as ``uc.sv
 .. autofunction:: color
 .. autofunction:: segmentation
 .. autofunction:: object_detection
-.. autofunction:: scene_recognition 
+.. autofunction:: scene_recognition
+
+SVI Module
+=========
+
+.. automodule:: urbancode.svi
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Perception
+---------
+
+.. autofunction:: urbancode.svi.comfort 
