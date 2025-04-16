@@ -8,30 +8,36 @@ import pandas as pd
 import os
 from tqdm.auto import tqdm
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+import joblib
+import urbancode as uc
 
-def comfort(img_path, model_path, initial_features=None, device=None):
+def comfort(img_path, mode='image', device=None):
     """
-    Predict comfort score for an image using a pre-trained model.
+    Predict comfort scores and intermediate features.
 
     Args:
-        img_path (str): Path to the image file
-        model_path (str): Path to the pre-trained model
-        initial_features (numpy.ndarray, optional): Initial feature vector
-        device (str, optional): Device to run the model on ('cuda' or 'cpu')
+        img_path (str): Path to image file or folder
+        mode (str): Processing mode, either 'image' or 'folder'
+        device (str, optional): Device to run model on ('cuda' or 'cpu')
 
     Returns:
-        float: Predicted comfort score
+        pandas.DataFrame: DataFrame containing comfort scores and features
 
     Raises:
-        FileNotFoundError: If the image file or model file does not exist
-        ValueError: If the model cannot be loaded
+        ValueError: If mode is not 'image' or 'folder'
+        FileNotFoundError: If image file or model file not found
     """
-    # Check if files exist
-    if not os.path.exists(img_path):
-        raise FileNotFoundError(f"Image file not found: {img_path}")
+    if mode not in ['image', 'folder']:
+        raise ValueError("mode must be either 'image' or 'folder'")
+
+    # Get current file directory using __file__
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(current_dir, "data", "250416_2_best_model.pth")
+
+    # Check if model file exists
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
 
@@ -41,42 +47,100 @@ def comfort(img_path, model_path, initial_features=None, device=None):
     
     # Load model
     try:
-        model = TwoStageNNModel(num_initial_features=initial_features.shape[0] if initial_features is not None else 0, 
-                               num_features=20)
+        model = TwoStageNNModel(num_initial_features=59, num_features=20)
         model.load_state_dict(torch.load(model_path, map_location=device))
         model.to(device)
         model.eval()
     except Exception as e:
         raise ValueError(f"Failed to load model: {str(e)}")
 
-    # Load and preprocess image using a deterministic transform for prediction
+    # Define image preprocessing transforms
     transform = transforms.Compose([
         transforms.Resize((512, 1024)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
+
+    # Create initial DataFrame
+    if mode == 'image':
+        df = pd.DataFrame({'Filename': [os.path.basename(img_path)]})
+        folder_path = os.path.dirname(img_path)
+    else:  # mode == 'folder'
+        df = uc.svi.filename(img_path)
+        folder_path = img_path
+
+    # Process image features sequentially
+    print("\nProcessing segmentation features...")
+    df = uc.svi.segmentation(df, folder_path=folder_path)
     
-    try:
-        image = Image.open(img_path).convert('RGB')
-        image = transform(image).unsqueeze(0).to(device)
-    except Exception as e:
-        raise ValueError(f"Failed to load or preprocess image: {str(e)}")
+    print("\nProcessing object detection features...")
+    df = uc.svi.object_detection(df, folder_path=folder_path)
+    
+    print("\nProcessing color features...")
+    df = uc.svi.color(df, folder_path=folder_path)
+    
+    print("\nProcessing scene recognition features...")
+    df = uc.svi.scene_recognition(df, folder_path=folder_path)
+    print(df.columns)
 
-    # Prepare initial features
-    if initial_features is not None:
-        initial_features = torch.tensor(initial_features, dtype=torch.float).unsqueeze(0).to(device)
-    else:
-        initial_features = torch.zeros((1, 0), dtype=torch.float).to(device)
+    # Save original feature columns
+    original_feature_cols = df.columns[1:].tolist()  # Exclude Filename column
 
-    # Predict
-    with torch.no_grad():
+    # Create perception metric columns
+    feature_names = ['thermal_comfort', 'visual_comfort', 'temp_intensity', 'sun_intensity', 
+                    'humidity_inference', 'wind_inference', 'traffic_flow', 'greenery_rate', 
+                    'shading_area', 'material_comfort', 'imageability', 'enclosure', 
+                    'human_scale', 'transparency', 'complexity', 'safe', 'lively', 
+                    'beautiful', 'wealthy', 'boring', 'depressing']
+    
+    # Initialize perception metric columns
+    for i, name in enumerate(feature_names):
+        df.insert(i+1, name, 0.0)  # Insert perception metrics in columns 1-22
+
+    # Load feature min/max values
+    feature_stats_path = os.path.join(current_dir, "data", "feature_stats.npz")
+    if not os.path.exists(feature_stats_path):
+        raise FileNotFoundError(f"Feature stats file not found: {feature_stats_path}")
+    stats = np.load(feature_stats_path)
+    feature_mins = stats['mins']
+    feature_maxs = stats['maxs']
+
+    # Process each row
+    for idx, row in tqdm(df.iterrows(), total=len(df), desc="Predicting comfort"):
+        # Get image path
+        img_name = row['Filename']
+        img_path = os.path.join(folder_path, img_name)
+        
+        # Check if image exists
+        if not os.path.exists(img_path):
+            print(f"Warning: Image file not found: {img_path}")
+            continue
+        
         try:
-            _, comfort_score = model(image, initial_features)
-            comfort_score = comfort_score.squeeze().item()
+            # Load and preprocess image
+            image = Image.open(img_path).convert('RGB')
+            image = transform(image).unsqueeze(0).to(device)
+            
+            # Get initial features (columns 22-81)
+            initial_features = row.iloc[22:81].values.astype(float)
+            
+            # Normalize features
+            normalized_features = (initial_features - feature_mins) / (feature_maxs - feature_mins)
+            initial_features = torch.tensor(normalized_features, dtype=torch.float).unsqueeze(0).to(device)
+            
+            # Predict
+            with torch.no_grad():
+                features, comfort_score = model(image, initial_features)
+                
+                # Save all features
+                df.at[idx, 'thermal_comfort'] = comfort_score.squeeze().item()
+                for i, name in enumerate(feature_names[1:]):  # Skip thermal_comfort
+                    df.at[idx, name] = features.squeeze()[i].item()
+                    
         except Exception as e:
-            raise ValueError(f"Prediction failed: {str(e)}")
-
-    return comfort_score
+            print(f"Error processing image {img_path}: {str(e)}")
+    
+    return df
 
 class CustomDataset(Dataset):
     def __init__(self, csv_path, img_folder, 
@@ -103,11 +167,10 @@ class CustomDataset(Dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         
-        # Fix StandardScaler warning by providing feature names
+        # Calculate feature min/max values for normalization
         initial_features_df = self.df.iloc[:, initial_feature_cols[0]:initial_feature_cols[1]]
-        self.feature_names = initial_features_df.columns.tolist()
-        self.scaler = StandardScaler()
-        self.scaler.fit(initial_features_df)
+        self.feature_mins = initial_features_df.min()
+        self.feature_maxs = initial_features_df.max()
 
     def __len__(self):
         return len(self.df)
@@ -119,19 +182,18 @@ class CustomDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         image = self.transform(image)
 
-        # Fix StandardScaler warning by using DataFrame with column names
+        # Normalize using min/max values
         initial_features = self.df.iloc[idx, 
-            self.initial_feature_cols[0]:self.initial_feature_cols[1]].values.astype(float)
-        initial_features_df = pd.DataFrame([initial_features], columns=self.feature_names)
-        initial_features = self.scaler.transform(initial_features_df)
-        initial_features = torch.tensor(initial_features, dtype=torch.float).squeeze()
+            self.initial_feature_cols[0]:self.initial_feature_cols[1]].values
+        normalized_features = (initial_features - self.feature_mins) / (self.feature_maxs - self.feature_mins)
+        initial_features = torch.tensor(normalized_features, dtype=torch.float)
 
         # Get middle features (labels)
         numpy_data = self.df.iloc[idx, 
             self.feature_cols[0]:self.feature_cols[1]].values.astype(float)
         labels = torch.tensor(numpy_data, dtype=torch.float)
         
-        # Fix deprecated Series.__getitem__ warning
+        # Get target
         target = torch.tensor(self.df.iloc[idx].loc[self.target_col_name], dtype=torch.float)
         
         return image, initial_features, labels, target
@@ -254,6 +316,13 @@ class TwoStageNNPerception:
             initial_feature_cols=initial_feature_cols
         )
         
+        # Save feature min/max values
+        os.makedirs(model_save_path, exist_ok=True)
+        feature_stats_path = os.path.join(model_save_path, 'feature_stats.npz')
+        np.savez(feature_stats_path, 
+                 mins=dataset.feature_mins.values,
+                 maxs=dataset.feature_maxs.values)
+        
         # Split dataset
         total_size = len(dataset)
         train_size = int(train_ratio * total_size)
@@ -280,7 +349,6 @@ class TwoStageNNPerception:
         )
         
         self.model_save_path = model_save_path
-        os.makedirs(model_save_path, exist_ok=True)
         self.writer = SummaryWriter(log_dir=os.path.join(model_save_path, 'logs'))
         
     def train(self, num_epochs):

@@ -3,6 +3,9 @@ __author__ = "Sijie Yang"
 __description__ = "A package for universal urban analysis"
 
 # Import submodules
-import urbancode.svi
+from . import svi
+
+# Make svi module available at package level
+__all__ = ['svi']
 
 # Remove the direct imports

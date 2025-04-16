@@ -47,8 +47,6 @@ setup(
         "transformers>=4.30.0",
         "accelerate>=0.20.0",
         "safetensors>=0.3.1",
-        "ipywidgets>=8.0.0",
-        "jupyter>=1.0.0",
         "urllib3>=2.0.0",
         "requests>=2.0.0"
     ],
@@ -58,7 +56,9 @@ setup(
             'pytest-cov>=2.0',
             'flake8>=3.9.0',
             'black>=21.0',
-            'isort>=5.0'
+            'isort>=5.0',
+            'jupyter>=1.0.0',
+            'ipywidgets>=8.0.0'
         ]
     }
 )
