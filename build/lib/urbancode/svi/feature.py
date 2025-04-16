@@ -1,3 +1,17 @@
+"""
+Street View Image (SVI) feature extraction module.
+
+This module provides functions for extracting various features from street view images,
+including:
+- Basic image features (color, edges, contrast, etc.)
+- Semantic segmentation using SegFormer
+- Object detection using Faster R-CNN
+- Scene recognition using ResNet
+
+The module is designed to work with pandas DataFrames containing image filenames
+and returns DataFrames with added feature columns.
+"""
+
 import os
 import pandas as pd
 from PIL import Image
@@ -20,15 +34,15 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 def filename(folder_path, output_filename=None, filename_column='Filename'):
     """
-    Scan folder for image files and create a DataFrame with filenames
+    Scan folder for image files and create a DataFrame with filenames.
     
     Args:
-        folder_path: Path to the folder containing images
-        output_filename: Optional CSV filename to save results
-        filename_column: Optional name for the filename column (default: 'Filename')
+        folder_path (str): Path to the folder containing images
+        output_filename (str, optional): CSV filename to save results
+        filename_column (str, optional): Name for the filename column. Defaults to 'Filename'
         
     Returns:
-        DataFrame with image filenames
+        pd.DataFrame: DataFrame with image filenames
     """
     # Get all image files
     image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff')
@@ -46,15 +60,25 @@ def filename(folder_path, output_filename=None, filename_column='Filename'):
 
 def color(df, folder_path=None, filename_column='Filename'):
     """
-    Extract color features from images and add to DataFrame
+    Extract color features from images and add to DataFrame.
+    
+    This function extracts various color-based features from images including:
+    - Colorfulness
+    - Hue statistics
+    - Saturation statistics
+    - Lightness statistics
+    - Contrast
+    - Sharpness
+    - Entropy
+    - Image variance
     
     Args:
-        df: DataFrame containing image filenames
-        filename_column: Name of the column containing filenames
-        folder_path: Path to the folder containing images
+        df (pd.DataFrame): DataFrame containing image filenames
+        folder_path (str): Path to the folder containing images
+        filename_column (str, optional): Name of the column containing filenames. Defaults to 'Filename'
         
     Returns:
-        DataFrame with added color features
+        pd.DataFrame: Original DataFrame with added color feature columns
     """
     if folder_path is None:
         raise ValueError("folder_path must be provided")
@@ -77,6 +101,18 @@ def color(df, folder_path=None, filename_column='Filename'):
     return pd.concat([df, features_df], axis=1)
 
 def read_image_with_pil(image_path):
+    """
+    Read an image file using PIL and convert it to OpenCV format.
+    
+    Args:
+        image_path (str): Path to the image file
+        
+    Returns:
+        numpy.ndarray: Image in BGR format (OpenCV format)
+        
+    Raises:
+        ValueError: If image cannot be read
+    """
     try:
         pil_image = Image.open(image_path)
         pil_image = pil_image.convert('RGB')
@@ -87,6 +123,18 @@ def read_image_with_pil(image_path):
         raise ValueError(f"Failed to read the image with PIL: {str(e)}")
 
 def compute_colorfulness(image):
+    """
+    Compute the colorfulness metric of an image.
+    
+    This metric is based on the paper "Measuring colorfulness in natural images"
+    by Hasler and Süsstrunk (2003).
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Colorfulness score
+    """
     (B, G, R) = cv2.split(image.astype("float"))
     rg = np.absolute(R - G)
     yb = np.absolute(0.5 * (R + G) - B)
@@ -97,11 +145,29 @@ def compute_colorfulness(image):
     return stdRoot + (0.3 * meanRoot)
 
 def compute_canny_edges(image):
+    """
+    Compute the ratio of edge pixels in an image using Canny edge detection.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Ratio of edge pixels to total pixels
+    """
     edges = cv2.Canny(image, 100, 200)
     edge_ratio = np.sum(edges) / edges.size
     return edge_ratio
 
 def compute_hue_mean_std(image):
+    """
+    Compute mean and standard deviation of hue channel in HSV color space.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        tuple: (mean hue, standard deviation of hue)
+    """
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     hue = hsv_image[:, :, 0]
     hue_mean = np.mean(hue)
@@ -109,6 +175,15 @@ def compute_hue_mean_std(image):
     return hue_mean, hue_std
 
 def compute_saturation_mean_std(image):
+    """
+    Compute mean and standard deviation of saturation channel in HSV color space.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        tuple: (mean saturation, standard deviation of saturation)
+    """
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     saturation = hsv_image[:, :, 1]
     saturation_mean = np.mean(saturation)
@@ -116,6 +191,15 @@ def compute_saturation_mean_std(image):
     return saturation_mean, saturation_std
 
 def compute_lightness_mean_std(image):
+    """
+    Compute mean and standard deviation of lightness channel in LAB color space.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        tuple: (mean lightness, standard deviation of lightness)
+    """
     lab_image = cv2.cvtColor(image, cv2.COLOR_BGR2Lab)
     lightness = lab_image[:, :, 0]
     lightness_mean = np.mean(lightness)
@@ -123,26 +207,80 @@ def compute_lightness_mean_std(image):
     return lightness_mean, lightness_std
 
 def compute_contrast(image):
+    """
+    Compute the contrast of an image using standard deviation of grayscale values.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Contrast value
+    """
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     contrast = gray_image.std()
     return contrast
 
 def compute_sharpness(image):
+    """
+    Compute the sharpness of an image using Laplacian variance.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Sharpness value
+    """
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     laplacian_var = cv2.Laplacian(gray_image, cv2.CV_64F).var()
     return laplacian_var
 
 def compute_entropy(image):
+    """
+    Compute the Shannon entropy of an image.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Entropy value
+    """
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     entropy = shannon_entropy(gray_image)
-    return entropy
+    
+    # 确保返回的是单一值而不是列表
+    if isinstance(entropy, (list, np.ndarray)):
+        # 如果是列表或数组，取平均值
+        entropy = np.mean(entropy)
+    
+    return float(entropy)  # 确保返回的是浮点数
 
 def compute_image_variance(image):
+    """
+    Compute the variance of grayscale pixel values.
+    
+    Args:
+        image (numpy.ndarray): Image in BGR format
+        
+    Returns:
+        float: Variance value
+    """
     gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     variance = np.var(gray_image)
     return variance
 
 def extract_features(image_path):
+    """
+    Extract all basic image features from a single image.
+    
+    This is a helper function that combines all basic feature extraction functions
+    into a single call.
+    
+    Args:
+        image_path (str): Path to the image file
+        
+    Returns:
+        dict: Dictionary containing all extracted features
+    """
     image = read_image_with_pil(image_path)
     colorfulness = compute_colorfulness(image)
     canny_edges = compute_canny_edges(image)
@@ -169,7 +307,20 @@ def extract_features(image_path):
     }
 
 def segmentation(df, folder_path, filename_column='Filename'):
-    """Use SegFormer for Cityscapes semantic segmentation"""
+    """
+    Perform semantic segmentation on images using SegFormer model.
+    
+    This function uses the SegFormer model fine-tuned on Cityscapes dataset to
+    segment images into 19 different classes including road, building, vegetation, etc.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing image filenames
+        folder_path (str): Path to the folder containing images
+        filename_column (str, optional): Name of the column containing filenames. Defaults to 'Filename'
+        
+    Returns:
+        pd.DataFrame: Original DataFrame with added segmentation feature columns
+    """
     # Initialize model and feature extractor
     model_name = "nvidia/segformer-b0-finetuned-cityscapes-1024-1024"
     feature_extractor = SegformerImageProcessor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
@@ -244,15 +395,20 @@ COCO_LABELS = {
 }
 
 def object_detection(df, folder_path, filename_column='Filename'):
-    """Use Faster R-CNN for COCO object detection
+    """
+    Perform object detection on images using Faster R-CNN.
+    
+    This function uses Faster R-CNN with ResNet-50 backbone pre-trained on COCO dataset
+    to detect objects in images. It detects common urban objects like people, vehicles,
+    traffic signs, etc.
     
     Args:
-        df: DataFrame containing image filenames
-        folder_path: Path to the folder containing images
-        filename_column: Name of the filename column
+        df (pd.DataFrame): DataFrame containing image filenames
+        folder_path (str): Path to the folder containing images
+        filename_column (str, optional): Name of the column containing filenames. Defaults to 'Filename'
         
     Returns:
-        DataFrame: DataFrame containing counts for each object category
+        pd.DataFrame: Original DataFrame with added object detection feature columns
     """
     # Initialize model
     model = models.detection.fasterrcnn_resnet50_fpn(
@@ -304,17 +460,19 @@ SCENE_CATEGORIES = [
 ]
 
 def scene_recognition(df, folder_path=None, filename_column='Filename'):
-    """Use ResNet50 for scene recognition
+    """
+    Perform scene recognition on images using ResNet.
+    
+    This function uses ResNet-50 pre-trained on ImageNet to classify images into
+    different scene categories.
     
     Args:
-        df: DataFrame containing image filenames
-        folder_path: Path to the folder containing images
-        filename_column: Name of the column containing filenames
-        scene_model_file: Path to the scene recognition model weights
-        scene_label_file: Path to the scene category labels file
+        df (pd.DataFrame): DataFrame containing image filenames
+        folder_path (str): Path to the folder containing images
+        filename_column (str, optional): Name of the column containing filenames. Defaults to 'Filename'
         
     Returns:
-        DataFrame with scene recognition probabilities
+        pd.DataFrame: Original DataFrame with added scene recognition feature columns
     """
 
     scene_model_file =  './data/resnet50_places365.pth.tar'
