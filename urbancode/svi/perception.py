@@ -35,7 +35,22 @@ def comfort(img_path, mode='image', device=None):
 
     # Get current file directory using __file__
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, "data", "250416_2_best_model.pth")
+    model_path = os.path.join(current_dir, "data", "250416_thermal_affordance_model.pth")
+
+    # Download model from Hugging Face if not exists
+    if not os.path.exists(model_path):
+        print("Downloading model from Hugging Face...")
+        try:
+            from huggingface_hub import hf_hub_download
+            hf_hub_download(
+                repo_id="sijiey/Thermal-Affordance-Model",
+                filename="250416_thermal_affordance_model.pth",
+                local_dir=os.path.join(current_dir, "data"),
+                local_dir_use_symlinks=False
+            )
+            print("Model downloaded successfully.")
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to download model: {str(e)}")
 
     # Check if model file exists
     if not os.path.exists(model_path):
