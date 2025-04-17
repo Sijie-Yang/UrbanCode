@@ -16,36 +16,51 @@ import urbancode as uc
 
 def comfort(img_path, mode='image', device=None):
     """
-    预测舒适度分数和中间特征。
+    Predict comfort scores and intermediate features.
 
     Args:
-        img_path (str): 图像路径或文件夹路径
-        mode (str): 处理模式，'image' 或 'folder'
-        device (str, optional): 运行模型的设备 ('cuda' 或 'cpu')
+        img_path (str): Path to image file or folder
+        mode (str): Processing mode, either 'image' or 'folder'
+        device (str, optional): Device to run model on ('cuda' or 'cpu')
 
     Returns:
-        pandas.DataFrame: 包含舒适度分数和特征的DataFrame
+        pandas.DataFrame: DataFrame containing comfort scores and features
 
     Raises:
-        ValueError: 如果模式不是 'image' 或 'folder'
-        FileNotFoundError: 如果图像文件或模型文件不存在
+        ValueError: If mode is not 'image' or 'folder'
+        FileNotFoundError: If image file or model file not found
     """
     if mode not in ['image', 'folder']:
         raise ValueError("mode must be either 'image' or 'folder'")
 
-    # 使用 __file__ 获取当前文件的目录
+    # Get current file directory using __file__
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(current_dir, "data", "best_model.pth")
+    model_path = os.path.join(current_dir, "data", "250416_thermal_affordance_model.pth")
 
-    # 检查模型文件是否存在
+    # Download model from Hugging Face if not exists
+    if not os.path.exists(model_path):
+        print("Downloading model from Hugging Face...")
+        try:
+            from huggingface_hub import hf_hub_download
+            hf_hub_download(
+                repo_id="sijiey/Thermal-Affordance-Model",
+                filename="250416_thermal_affordance_model.pth",
+                local_dir=os.path.join(current_dir, "data"),
+                local_dir_use_symlinks=False
+            )
+            print("Model downloaded successfully.")
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to download model: {str(e)}")
+
+    # Check if model file exists
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model file not found: {model_path}")
 
-    # 设置设备
+    # Set device
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    # 加载模型
+    # Load model
     try:
         model = TwoStageNNModel(num_initial_features=59, num_features=20)
         model.load_state_dict(torch.load(model_path, map_location=device))
@@ -54,14 +69,14 @@ def comfort(img_path, mode='image', device=None):
     except Exception as e:
         raise ValueError(f"Failed to load model: {str(e)}")
 
-    # 定义图像预处理转换
+    # Define image preprocessing transforms
     transform = transforms.Compose([
         transforms.Resize((512, 1024)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
-    # 创建初始DataFrame
+    # Create initial DataFrame
     if mode == 'image':
         df = pd.DataFrame({'Filename': [os.path.basename(img_path)]})
         folder_path = os.path.dirname(img_path)
@@ -69,7 +84,7 @@ def comfort(img_path, mode='image', device=None):
         df = uc.svi.filename(img_path)
         folder_path = img_path
 
-    # 按顺序处理图像特征
+    # Process image features sequentially
     print("\nProcessing segmentation features...")
     df = uc.svi.segmentation(df, folder_path=folder_path)
     
@@ -81,25 +96,23 @@ def comfort(img_path, mode='image', device=None):
     
     print("\nProcessing scene recognition features...")
     df = uc.svi.scene_recognition(df, folder_path=folder_path)
+    print(df.columns)
 
-    # 将1:60列移动到22:81列
-    feature_cols = df.columns[1:61]  # 获取1:60列
-    df = df.drop(columns=feature_cols)  # 删除这些列
-    for i, col in enumerate(feature_cols):
-        df.insert(22 + i, col, df[col])  # 在22:81位置重新插入
+    # Save original feature columns
+    original_feature_cols = df.columns[1:].tolist()  # Exclude Filename column
 
-    # 创建感知指标列
+    # Create perception metric columns
     feature_names = ['thermal_comfort', 'visual_comfort', 'temp_intensity', 'sun_intensity', 
                     'humidity_inference', 'wind_inference', 'traffic_flow', 'greenery_rate', 
                     'shading_area', 'material_comfort', 'imageability', 'enclosure', 
                     'human_scale', 'transparency', 'complexity', 'safe', 'lively', 
                     'beautiful', 'wealthy', 'boring', 'depressing']
     
-    # 初始化感知指标列
-    for name in feature_names:
-        df[name] = 0.0
+    # Initialize perception metric columns
+    for i, name in enumerate(feature_names):
+        df.insert(i+1, name, 0.0)  # Insert perception metrics in columns 1-22
 
-    # 加载特征的最大最小值
+    # Load feature min/max values
     feature_stats_path = os.path.join(current_dir, "data", "feature_stats.npz")
     if not os.path.exists(feature_stats_path):
         raise FileNotFoundError(f"Feature stats file not found: {feature_stats_path}")
@@ -107,36 +120,36 @@ def comfort(img_path, mode='image', device=None):
     feature_mins = stats['mins']
     feature_maxs = stats['maxs']
 
-    # 处理每一行
+    # Process each row
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="Predicting comfort"):
-        # 获取图像路径
+        # Get image path
         img_name = row['Filename']
         img_path = os.path.join(folder_path, img_name)
         
-        # 检查图像是否存在
+        # Check if image exists
         if not os.path.exists(img_path):
             print(f"Warning: Image file not found: {img_path}")
             continue
         
         try:
-            # 加载和预处理图像
+            # Load and preprocess image
             image = Image.open(img_path).convert('RGB')
             image = transform(image).unsqueeze(0).to(device)
             
-            # 获取初始特征 (22:81列)
+            # Get initial features (columns 22-81)
             initial_features = row.iloc[22:81].values.astype(float)
             
-            # 标准化特征
+            # Normalize features
             normalized_features = (initial_features - feature_mins) / (feature_maxs - feature_mins)
             initial_features = torch.tensor(normalized_features, dtype=torch.float).unsqueeze(0).to(device)
             
-            # 预测
+            # Predict
             with torch.no_grad():
                 features, comfort_score = model(image, initial_features)
                 
-                # 保存所有特征
+                # Save all features
                 df.at[idx, 'thermal_comfort'] = comfort_score.squeeze().item()
-                for i, name in enumerate(feature_names[1:]):  # 跳过thermal_comfort
+                for i, name in enumerate(feature_names[1:]):  # Skip thermal_comfort
                     df.at[idx, name] = features.squeeze()[i].item()
                     
         except Exception as e:
@@ -169,7 +182,7 @@ class CustomDataset(Dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ])
         
-        # 计算每个特征的最大最小值用于标准化
+        # Calculate feature min/max values for normalization
         initial_features_df = self.df.iloc[:, initial_feature_cols[0]:initial_feature_cols[1]]
         self.feature_mins = initial_features_df.min()
         self.feature_maxs = initial_features_df.max()
@@ -184,7 +197,7 @@ class CustomDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         image = self.transform(image)
 
-        # 使用最大最小值进行标准化
+        # Normalize using min/max values
         initial_features = self.df.iloc[idx, 
             self.initial_feature_cols[0]:self.initial_feature_cols[1]].values
         normalized_features = (initial_features - self.feature_mins) / (self.feature_maxs - self.feature_mins)
@@ -318,7 +331,7 @@ class TwoStageNNPerception:
             initial_feature_cols=initial_feature_cols
         )
         
-        # 保存特征的最大最小值
+        # Save feature min/max values
         os.makedirs(model_save_path, exist_ok=True)
         feature_stats_path = os.path.join(model_save_path, 'feature_stats.npz')
         np.savez(feature_stats_path, 

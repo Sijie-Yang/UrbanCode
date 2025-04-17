@@ -155,6 +155,11 @@ def comfort(img_path, mode='image', device=None):
         except Exception as e:
             print(f"Error processing image {img_path}: {str(e)}")
     
+    # Normalize perception metrics to 0-5 range if in folder mode
+    if mode == 'folder':
+        scaler = MinMaxScaler(feature_range=(0, 5))
+        df[feature_names] = scaler.fit_transform(df[feature_names])
+    
     return df
 
 class CustomDataset(Dataset):
