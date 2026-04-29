@@ -7,3 +7,6 @@ urbancode/tests/
 __pycache__/
 *.py[cod]
 *.cpython-*.pyc
+
+build/
+dist/
