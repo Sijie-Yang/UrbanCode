@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="urbancode",
-    version="0.2.2",
+    version="0.2.3",
     author="Sijie Yang",
     author_email="sijiey@u.nus.edu",
     description="A package for universal urban analysis",
