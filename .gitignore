@@ -3,3 +3,7 @@ urbancode.egg-info/
 .DS_Store
 **/.DS_Store
 urbancode/tests/
+
+__pycache__/
+*.py[cod]
+*.cpython-*.pyc

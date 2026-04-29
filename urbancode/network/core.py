@@ -4,35 +4,119 @@ import momepy
 import geopandas as gpd
 import os
 import time
-from typing import Union, Dict
+import hashlib
+from typing import Union, Dict, Optional
 
-def download_network(output_type: str, network_type: str, place: str) -> Union[nx.MultiDiGraph, gpd.GeoDataFrame]:
+# Default cache directory
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".urbancode", "cache")
+
+def _get_cache_path(place: str, network_type: str, output_type: str) -> str:
+    """Generate cache file path based on place, network_type, and output_type."""
+    # Create cache directory if it doesn't exist
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    
+    # Create a hash of the place and network_type for filename
+    cache_key = f"{place}_{network_type}_{output_type}"
+    cache_hash = hashlib.md5(cache_key.encode()).hexdigest()
+    
+    if output_type.lower() == 'graph':
+        return os.path.join(CACHE_DIR, f"{cache_hash}.graphml")
+    else:
+        return os.path.join(CACHE_DIR, f"{cache_hash}.gpkg")
+
+def download_network(
+    output_type: str, 
+    network_type: str, 
+    place: str,
+    use_cache: bool = True,
+    cache_dir: Optional[str] = None
+) -> Union[nx.MultiDiGraph, gpd.GeoDataFrame]:
     """
-    Load a street network from OpenStreetMap with progress indication.
+    Load a street network from OpenStreetMap with progress indication and caching support.
+    
+    This function supports downloading networks for various cities worldwide. Common place formats:
+    - City name: "Singapore", "New York, USA", "London, UK"
+    - City, Country: "Paris, France", "Tokyo, Japan"
+    - Address: "Manhattan, New York, USA"
     
     Args:
-    output_type (str): The type of output ('graph' or 'gdf'). This is a required parameter.
-    network_type (str): The type of network to download ('drive', 'walk', 'bike', 'all', etc.). This is a required parameter.
-    place (str): The place to download the network for.
+        output_type (str): The type of output ('graph' or 'gdf'). This is a required parameter.
+        network_type (str): The type of network to download ('drive', 'walk', 'bike', 'all', etc.). 
+                           This is a required parameter.
+        place (str): The place to download the network for. Can be city name, city with country,
+                    or more specific address.
+        use_cache (bool): Whether to use cached network if available (default: True).
+        cache_dir (str, optional): Custom cache directory. If None, uses default cache location.
     
     Returns:
-    Union[nx.MultiDiGraph, gpd.GeoDataFrame]: A NetworkX graph or GeoDataFrame representing the street network.
+        Union[nx.MultiDiGraph, gpd.GeoDataFrame]: A NetworkX graph or GeoDataFrame representing 
+                                                 the street network.
+    
+    Examples:
+        >>> G = download_network('graph', 'drive', 'Singapore')
+        >>> G = download_network('graph', 'walk', 'New York, USA')
+        >>> gdf = download_network('gdf', 'bike', 'London, UK')
     """
     if output_type.lower() not in ['graph', 'gdf']:
         raise ValueError("The first parameter, output_type, must be either 'graph' or 'gdf'")
     
     if not network_type:
         raise ValueError("The second parameter, network_type, must be specified")
-
+    
+    if not place:
+        raise ValueError("The place parameter must be specified")
+    
+    # Set cache directory
+    global CACHE_DIR
+    if cache_dir:
+        CACHE_DIR = cache_dir
+        os.makedirs(CACHE_DIR, exist_ok=True)
+    
+    # Check cache first
+    if use_cache:
+        cache_path = _get_cache_path(place, network_type, output_type)
+        if os.path.exists(cache_path):
+            print(f"Loading cached network for {place} ({network_type})...")
+            try:
+                if output_type.lower() == 'graph':
+                    G = ox.load_graphml(cache_path)
+                    print(f"Loaded cached network with {len(G.nodes)} nodes and {len(G.edges)} edges.")
+                    return G
+                else:
+                    gdf = gpd.read_file(cache_path)
+                    print(f"Loaded cached GeoDataFrame with {len(gdf)} rows.")
+                    return gdf
+            except Exception as e:
+                print(f"Warning: Failed to load cache ({e}). Downloading fresh network...")
+    
     print(f"Starting to download the {network_type} network for {place}...")
     start_time = time.time()
     
-    # Download the network
-    G = ox.graph_from_place(place, network_type=network_type)
+    try:
+        # Download the network
+        G = ox.graph_from_place(place, network_type=network_type)
+    except Exception as e:
+        raise ValueError(
+            f"Failed to download network for '{place}'. "
+            f"Please check the place name format. Error: {str(e)}"
+        )
     
     end_time = time.time()
     print(f"Download completed in {end_time - start_time:.2f} seconds.")
     print(f"Network graph has {len(G.nodes)} nodes and {len(G.edges)} edges.")
+    
+    # Save to cache
+    if use_cache:
+        cache_path = _get_cache_path(place, network_type, output_type)
+        try:
+            if output_type.lower() == 'graph':
+                ox.save_graphml(G, cache_path)
+            else:
+                gdf_edges = ox.graph_to_gdfs(G, nodes=False, edges=True)
+                gdf_edges.to_file(cache_path, driver='GPKG')
+            print(f"Network cached to {cache_path}")
+        except Exception as e:
+            print(f"Warning: Failed to save cache ({e})")
     
     if output_type.lower() == 'gdf':
         # Convert the graph to GeoDataFrame
@@ -161,42 +245,4 @@ def graph_from_gdf(gdf: Union[gpd.GeoDataFrame, Dict[str, gpd.GeoDataFrame]]) ->
     # Use momepy to convert the edges GeoDataFrame to a NetworkX graph
     G = momepy.gdf_to_nx(edges_gdf, approach="primal")
 
-    return G
-
-def calculate_centrality(G: nx.MultiDiGraph, measure: str = 'closeness', weight: str = 'length') -> nx.MultiDiGraph:
-    """
-    Calculate centrality measures for the network.
-    
-    Args:
-        G (nx.MultiDiGraph): The input graph.
-        measure (str): The centrality measure to calculate ('closeness', 'betweenness', or 'straightness').
-        weight (str): The edge attribute to use as weight.
-    
-    Returns:
-        nx.MultiDiGraph: The graph with centrality measures added as node attributes.
-    """
-    if measure == 'closeness':
-        nx.set_node_attributes(G, momepy.closeness_centrality(G, weight=weight), 'closeness')
-    elif measure == 'betweenness':
-        nx.set_node_attributes(G, momepy.betweenness_centrality(G, weight=weight), 'betweenness')
-    elif measure == 'straightness':
-        nx.set_node_attributes(G, momepy.straightness_centrality(G, weight=weight), 'straightness')
-    else:
-        raise ValueError(f"Unsupported centrality measure: {measure}")
-    
-    return G
-
-def calculate_connectivity(G: nx.MultiDiGraph) -> nx.MultiDiGraph:
-    """
-    Calculate connectivity measures for the network.
-    
-    Args:
-        G (nx.MultiDiGraph): The input graph.
-    
-    Returns:
-        nx.MultiDiGraph: The graph with connectivity measures added as graph attributes.
-    """
-    G.graph['meshedness'] = momepy.meshedness(G)
-    G.graph['edge_node_ratio'] = momepy.edge_node_ratio(G)
-    G.graph['gamma'] = momepy.gamma(G)
     return G
